@@ -27,14 +27,19 @@ func eiselLemire64(man uint64, exp10 int, neg bool) (f float64, ok bool) {
 	// https://nigeltao.github.io/blog/2020/eisel-lemire.html blog post.
 
 	// Exp10 Range.
-	if man == 0 {
+	if man == 0 || exp10 < detailedPowersOfTenMinExp10 { // detailedPowersOfTenMinExp10 = -348 and 1e-348 is always zero, in fact 1e-342 is zero!
 		if neg {
 			f = math.Float64frombits(0x80000000_00000000) // Negative zero.
 		}
 		return f, true
 	}
-	if exp10 < detailedPowersOfTenMinExp10 || detailedPowersOfTenMaxExp10 < exp10 {
-		return 0, false
+	if detailedPowersOfTenMaxExp10 < exp10 { // detailedPowersOfTenMaxExp10 is 347 and 1e347 is infinity, see MaxFloat64 (1.8e+308)
+		if neg {
+			f = math.Inf(-1)
+		} else {
+			f = math.Inf(1)
+		}
+		return f, true
 	}
 
 	// Normalization.
@@ -102,14 +107,19 @@ func eiselLemire32(man uint64, exp10 int, neg bool) (f float32, ok bool) {
 	// man, xHi, retMantissa) before finally converting to a 32-bit float.
 
 	// Exp10 Range.
-	if man == 0 {
+	if man == 0 || exp10 < detailedPowersOfTenMinExp10 { // detailedPowersOfTenMinExp10 = -348 and 1e-348 is always zero, in fact 1e-342 is zero!
 		if neg {
 			f = math.Float32frombits(0x80000000) // Negative zero.
 		}
 		return f, true
 	}
-	if exp10 < detailedPowersOfTenMinExp10 || detailedPowersOfTenMaxExp10 < exp10 {
-		return 0, false
+	if detailedPowersOfTenMaxExp10 < exp10 { // detailedPowersOfTenMaxExp10 is 347 and 1e347 is infinity, see MaxFloat32 (3.4+38)
+		if neg {
+			f = float32(math.Inf(-1))
+		} else {
+			f = float32(math.Inf(1))
+		}
+		return f, true
 	}
 
 	// Normalization.
