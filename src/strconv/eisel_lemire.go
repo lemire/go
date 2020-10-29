@@ -46,7 +46,7 @@ func eiselLemire64(man uint64, exp10 int, neg bool) (f float64, ok bool) {
 	clz := bits.LeadingZeros64(man)
 	man <<= clz
 	const float64ExponentBias = 1023
-	retExp2 := uint64(217706*exp10>>16+64+float64ExponentBias) - uint64(clz)
+	retExp2 := int64(217706*exp10>>16+64+float64ExponentBias) - int64(clz)
 
 	// Multiplication.
 	xHi, xLo := bits.Mul64(man, detailedPowersOfTen[exp10-detailedPowersOfTenMinExp10][1])
@@ -67,7 +67,34 @@ func eiselLemire64(man uint64, exp10 int, neg bool) (f float64, ok bool) {
 	// Shifting to 54 Bits.
 	msb := xHi >> 63
 	retMantissa := xHi >> (msb + 9)
-	retExp2 -= 1 ^ msb
+	retExp2 -= int64(1 ^ msb)
+	// If retExp2 is  0 or smaller, we may have a subnormal.
+	if retExp2 <= 0 { // We may have a subnormal?
+		if -retExp2+1 >= 64 { // If we have more than 64 bits below the minimum exponent, we have a zero.
+			if neg {
+				f = math.Float64frombits(0x80000000_00000000) // Negative zero.
+			}
+			return f, true
+		}
+		// In the next line, -retExp2 + 1 is in [0,64).
+		retMantissa >>= -retExp2 + 1
+		// Thankfully, we cannot have both "round-to-even" and subnormals.
+		retMantissa += retMantissa & 1 // round up
+		retMantissa >>= 1
+		if retMantissa < 0x10000000000000 {
+			// We have a subnormal.
+			retExp2 = 0
+		} else {
+			// We have a small normal value.
+			retExp2 = 1
+		}
+		retBits := uint64(retExp2)<<52 | retMantissa&0x000FFFFF_FFFFFFFF
+		if neg {
+			retBits |= 0x80000000_00000000
+		}
+		return math.Float64frombits(retBits), true
+	}
+	// From this point forward, we have retExp2 > 0.
 
 	// Half-way Ambiguity.
 	if xLo == 0 && xHi&0x1FF == 0 && retMantissa&3 == 1 {
@@ -81,15 +108,16 @@ func eiselLemire64(man uint64, exp10 int, neg bool) (f float64, ok bool) {
 		retMantissa >>= 1
 		retExp2 += 1
 	}
-	// retExp2 is a uint64. Zero or underflow means that we're in subnormal
-	// float64 space. 0x7FF or above means that we're in Inf/NaN float64 space.
-	//
-	// The if block is equivalent to (but has fewer branches than):
-	//   if retExp2 <= 0 || retExp2 >= 0x7FF { etc }
-	if retExp2-1 >= 0x7FF-1 {
-		return 0, false
+	// If retExp2 is  0xFF or larger, we have an infinite value.
+	if retExp2 >= 0x7FF {
+		if neg {
+			f = math.Inf(-1)
+		} else {
+			f = math.Inf(1)
+		}
+		return f, true
 	}
-	retBits := retExp2<<52 | retMantissa&0x000FFFFF_FFFFFFFF
+	retBits := uint64(retExp2)<<52 | retMantissa&0x000FFFFF_FFFFFFFF
 	if neg {
 		retBits |= 0x80000000_00000000
 	}
@@ -105,7 +133,6 @@ func eiselLemire32(man uint64, exp10 int, neg bool) (f float32, ok bool) {
 	// applies to the float32 flavor (8 exponent bits with a -127 bias, 23
 	// mantissa bits). The computation here happens with 64-bit values (e.g.
 	// man, xHi, retMantissa) before finally converting to a 32-bit float.
-
 	// Exp10 Range.
 	if man == 0 || exp10 < detailedPowersOfTenMinExp10 { // detailedPowersOfTenMinExp10 = -348 and 1e-348 is always zero, in fact 1e-342 is zero!
 		if neg {
@@ -126,7 +153,7 @@ func eiselLemire32(man uint64, exp10 int, neg bool) (f float32, ok bool) {
 	clz := bits.LeadingZeros64(man)
 	man <<= clz
 	const float32ExponentBias = 127
-	retExp2 := uint64(217706*exp10>>16+64+float32ExponentBias) - uint64(clz)
+	retExp2 := int64(217706*exp10>>16+64+float32ExponentBias) - int64(clz)
 
 	// Multiplication.
 	xHi, xLo := bits.Mul64(man, detailedPowersOfTen[exp10-detailedPowersOfTenMinExp10][1])
@@ -147,7 +174,34 @@ func eiselLemire32(man uint64, exp10 int, neg bool) (f float32, ok bool) {
 	// Shifting to 54 Bits (and for float32, it's shifting to 25 bits).
 	msb := xHi >> 63
 	retMantissa := xHi >> (msb + 38)
-	retExp2 -= 1 ^ msb
+	retExp2 -= int64(1 ^ msb)
+	// If retExp2 is  0 or smaller, we may have a subnormal.
+	if retExp2 <= 0 { // We may have a subnormal?
+		if -retExp2+1 >= 64 { // If we have more than 64 bits below the minimum exponent, we have a zero.
+			if neg {
+				f = math.Float32frombits(0x80000000) // Negative zero.
+			}
+			return f, true
+		}
+		// In the next line, -retExp2 + 1 is in [0,64).
+		retMantissa >>= -retExp2 + 1
+		// Thankfully, we cannot have both "round-to-even" and subnormals.
+		retMantissa += retMantissa & 1 // round up
+		retMantissa >>= 1
+		if retMantissa < 0x800000 {
+			// We have a subnormal.
+			retExp2 = 0
+		} else {
+			// We have a small normal value.
+			retExp2 = 1
+		}
+		retBits := uint64(retExp2)<<23 | retMantissa&0x007FFFFF
+		if neg {
+			retBits |= 0x007FFFFF
+		}
+		return math.Float32frombits(uint32(retBits)), true
+	}
+	// From this point forward, we have retExp2 > 0.
 
 	// Half-way Ambiguity.
 	if xLo == 0 && xHi&0x3F_FFFFFFFF == 0 && retMantissa&3 == 1 {
@@ -161,15 +215,16 @@ func eiselLemire32(man uint64, exp10 int, neg bool) (f float32, ok bool) {
 		retMantissa >>= 1
 		retExp2 += 1
 	}
-	// retExp2 is a uint64. Zero or underflow means that we're in subnormal
-	// float32 space. 0xFF or above means that we're in Inf/NaN float32 space.
-	//
-	// The if block is equivalent to (but has fewer branches than):
-	//   if retExp2 <= 0 || retExp2 >= 0xFF { etc }
-	if retExp2-1 >= 0xFF-1 {
-		return 0, false
+	// If retExp2 is  0xFF or larger, we have an infinite value.
+	if retExp2 >= 0xFF {
+		if neg {
+			f = float32(math.Inf(-1))
+		} else {
+			f = float32(math.Inf(1))
+		}
+		return f, true
 	}
-	retBits := retExp2<<23 | retMantissa&0x007FFFFF
+	retBits := uint64(retExp2)<<23 | retMantissa&0x007FFFFF
 	if neg {
 		retBits |= 0x80000000
 	}
