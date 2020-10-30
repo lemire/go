@@ -212,7 +212,7 @@ func eiselLemire32(man uint64, exp10 int, neg bool) (f float32, ok bool) {
 		return 0, false
 	}
 
-	// Round-to-even. Only possible if q in [-4,23].
+	// Round-to-even. Only possible if q in [-17,10].
 	if xLo <= 1 && xHi&0x3F_FFFFFFFF == 0 && retMantissa&3 == 1 && exp10 <= 10 && exp10 >= -17 {
 		if retMantissa<<(38+msb) == xHi {
 			retMantissa &= 0xFFFFFFFF_FFFFFFFE // flip lsb so that we do not round up
