@@ -100,7 +100,7 @@ func eiselLemire64(man uint64, exp10 int, neg bool) (f float64, ok bool) {
 	// Round-to-even. Only possible if q in [-4,23].
 	if xLo <= 1 && xHi&0x1FF == 0 && retMantissa&3 == 1 && exp10 <= 23 && exp10 >= -4 {
 		if retMantissa<<(9+msb) == xHi {
-			retMantissa &= 0xFFFFFFFF_FFFFFFFE // flip lsb so that we do not round up
+			retMantissa &^= 1 // flip lsb so that we do not round up
 		}
 	}
 
@@ -215,7 +215,7 @@ func eiselLemire32(man uint64, exp10 int, neg bool) (f float32, ok bool) {
 	// Round-to-even. Only possible if q in [-17,10].
 	if xLo <= 1 && xHi&0x3F_FFFFFFFF == 0 && retMantissa&3 == 1 && exp10 <= 10 && exp10 >= -17 {
 		if retMantissa<<(38+msb) == xHi {
-			retMantissa &= 0xFFFFFFFF_FFFFFFFE // flip lsb so that we do not round up
+			retMantissa &^= 1 // flip lsb so that we do not round up
 		}
 	}
 
@@ -262,6 +262,7 @@ const (
 // https://github.com/google/wuffs/blob/ba3818cb6b473a2ed0b38ecfc07dbbd3a97e8ae7/script/print-mpb-powers-of-10.go
 //
 // For values in the range from 1e-1 to 1e-17 we round *up* so we can handle the round-to-even case correctly.
+// Generally, we can round all of these values toward zero.
 var detailedPowersOfTen = [...][2]uint64{
 	{0x1732C869CD60E453, 0xFA8FD5A0081C0288}, // 1e-348
 	{0x0E7FBD42205C8EB4, 0x9C99E58405118195}, // 1e-347
